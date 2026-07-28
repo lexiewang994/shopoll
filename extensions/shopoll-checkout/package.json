@@ -1,0 +1,25 @@
+{
+  "name": "shopoll-checkout",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "npm run test:contracts && npm run test:ui",
+    "test:contracts": "tsx --test tests/contracts.test.ts",
+    "test:ui": "vitest run --config vitest.config.ts tests/thank-you-ui.test.tsx tests/order-status-ui.test.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.3.2",
+    "@shopify/ui-extensions": "2026.7.0",
+    "preact": "^10.29.7"
+  },
+  "devDependencies": {
+    "@shopify/ui-extensions-tester": "2026.7.0",
+    "@testing-library/preact": "^3.2.4",
+    "jsdom": "^26.1.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

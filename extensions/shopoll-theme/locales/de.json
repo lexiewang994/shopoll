@@ -1,0 +1,17 @@
+{
+  "shopoll": {
+    "loading": "Umfrage wird geladen",
+    "close": "Umfrage schlie\u00dfen",
+    "next": "Weiter",
+    "back": "Zur\u00fcck",
+    "submit": "Absenden",
+    "retry": "Erneut versuchen",
+    "required": "Bitte beantworten Sie diese Frage.",
+    "consent_required": "Bitte best\u00e4tigen Sie Ihre Einwilligung, bevor Sie fortfahren.",
+    "error": "Ihre Antwort konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+    "question": "Frage",
+    "other": "Andere",
+    "thank_you": "Vielen Dank",
+    "reward_pending": "Ihr Rabattcode wird vorbereitet."
+  }
+}

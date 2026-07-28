@@ -1,0 +1,208 @@
+name: Deploy Shopoll
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_railway:
+        description: Deploy the Railway web and worker services
+        required: true
+        type: boolean
+        default: true
+      deploy_shopify:
+        description: Create a Shopify app version with configuration and extensions
+        required: true
+        type: boolean
+        default: true
+      release_shopify:
+        description: Release the Shopify version immediately (otherwise stage it only)
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shopoll-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  deploy-railway:
+    name: Deploy Railway
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+      RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT || 'production' }}
+      RAILWAY_WEB_SERVICE_ID: ${{ vars.RAILWAY_WEB_SERVICE_ID }}
+      RAILWAY_WORKER_SERVICE_ID: ${{ vars.RAILWAY_WORKER_SERVICE_ID }}
+      SHOPOLL_PUBLIC_URL: ${{ vars.SHOPOLL_PUBLIC_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Railway configuration
+        if: ${{ inputs.deploy_railway }}
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in RAILWAY_TOKEN RAILWAY_PROJECT_ID RAILWAY_ENVIRONMENT RAILWAY_WEB_SERVICE_ID RAILWAY_WORKER_SERVICE_ID SHOPOLL_PUBLIC_URL; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::$name is not configured in the production GitHub environment."
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then exit 1; fi
+
+      - name: Install pinned Railway CLI
+        if: ${{ inputs.deploy_railway }}
+        run: npm install --global @railway/cli@5.30.0
+
+      - name: Deploy web service
+        if: ${{ inputs.deploy_railway }}
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        shell: bash
+        run: |
+          railway up --ci \
+            --project "$RAILWAY_PROJECT_ID" \
+            --environment "$RAILWAY_ENVIRONMENT" \
+            --service "$RAILWAY_WEB_SERVICE_ID" \
+            --message "GitHub ${GITHUB_SHA::7} web"
+
+      - name: Deploy worker service
+        if: ${{ inputs.deploy_railway }}
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        shell: bash
+        run: |
+          railway up --ci \
+            --project "$RAILWAY_PROJECT_ID" \
+            --environment "$RAILWAY_ENVIRONMENT" \
+            --service "$RAILWAY_WORKER_SERVICE_ID" \
+            --message "GitHub ${GITHUB_SHA::7} worker"
+
+      - name: Verify Railway deployment states
+        if: ${{ inputs.deploy_railway }}
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 15
+          check_service() {
+            local service_id="$1"
+            local label="$2"
+            local json status
+            json="$(railway deployment list \
+              --project "$RAILWAY_PROJECT_ID" \
+              --environment "$RAILWAY_ENVIRONMENT" \
+              --service "$service_id" \
+              --limit 1 \
+              --json)"
+            status="$(jq -r 'if type == "array" then .[0].status // empty elif has("deployments") then .deployments[0].status // empty else .status // empty end' <<< "$json")"
+            if [[ "$status" != "SUCCESS" ]]; then
+              echo "::error::$label deployment status is '${status:-unknown}', expected SUCCESS."
+              exit 1
+            fi
+          }
+          check_service "$RAILWAY_WEB_SERVICE_ID" "Web"
+          check_service "$RAILWAY_WORKER_SERVICE_ID" "Worker"
+
+      - name: Verify deployed web service
+        if: ${{ inputs.deploy_railway }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_url="${SHOPOLL_PUBLIC_URL%/}"
+          curl --fail --silent --show-error --retry 20 --retry-delay 6 --retry-all-errors "$base_url/healthz"
+          curl --fail --silent --show-error --retry 20 --retry-delay 6 --retry-all-errors "$base_url/readyz"
+          echo "### Railway" >> "$GITHUB_STEP_SUMMARY"
+          echo "Web and worker deployed from \`${GITHUB_SHA::7}\`; health and readiness checks passed." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record skipped Railway deployment
+        if: ${{ !inputs.deploy_railway }}
+        run: echo "Railway deployment was skipped by workflow input." >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-shopify:
+    name: Deploy Shopify app version
+    needs: [verify, deploy-railway]
+    if: ${{ inputs.deploy_shopify }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SHOPIFY_CONFIG: ${{ vars.SHOPIFY_CONFIG }}
+      SHOPIFY_APP_URL: ${{ vars.SHOPOLL_PUBLIC_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Check Shopify deployment configuration
+        env:
+          SHOPIFY_APP_AUTOMATION_TOKEN: ${{ secrets.SHOPIFY_APP_AUTOMATION_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${SHOPIFY_APP_AUTOMATION_TOKEN:-}" ]]; then
+            echo "::error::SHOPIFY_APP_AUTOMATION_TOKEN is not configured in the production GitHub environment."
+            exit 1
+          fi
+          if [[ -z "${SHOPIFY_APP_URL:-}" ]]; then
+            echo "::error::SHOPOLL_PUBLIC_URL is not configured in the production GitHub environment."
+            exit 1
+          fi
+          config_args=()
+          if [[ -n "${SHOPIFY_CONFIG:-}" ]]; then config_args+=(--config "$SHOPIFY_CONFIG"); fi
+          npm exec shopify app config validate -- "${config_args[@]}"
+
+      - name: Create or release Shopify app version
+        env:
+          SHOPIFY_APP_AUTOMATION_TOKEN: ${{ secrets.SHOPIFY_APP_AUTOMATION_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+          version_tag="shopoll-${GITHUB_SHA::8}-${GITHUB_RUN_NUMBER}"
+          deploy_args=(
+            app deploy
+            --source-control-url "$commit_url"
+            --version "$version_tag"
+            --message "GitHub Actions run ${GITHUB_RUN_NUMBER} by ${GITHUB_ACTOR}"
+          )
+          if [[ -n "${SHOPIFY_CONFIG:-}" ]]; then deploy_args+=(--config "$SHOPIFY_CONFIG"); fi
+          if [[ "${{ inputs.release_shopify }}" == "true" ]]; then
+            deploy_args+=(--allow-updates)
+          else
+            deploy_args+=(--no-release)
+          fi
+          npm exec shopify -- "${deploy_args[@]}"
+
+          echo "### Shopify" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ inputs.release_shopify }}" == "true" ]]; then
+            echo "The Shopify app version was released. Survey placements remain controlled by Shopoll and are not enabled by this workflow." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The Shopify app version was staged with \`--no-release\`. Review and release it in the Dev Dashboard." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  summary:
+    name: Deployment summary
+    needs: [verify, deploy-railway, deploy-shopify]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write safety summary
+        run: |
+          echo "### Shopoll rollout safety" >> "$GITHUB_STEP_SUMMARY"
+          echo "This workflow never enables a survey placement, Theme block, Checkout block, Klaviyo Flow, or Web Pixel." >> "$GITHUB_STEP_SUMMARY"
+          echo "Railway: ${{ needs.deploy-railway.result }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Shopify: ${{ needs.deploy-shopify.result }}" >> "$GITHUB_STEP_SUMMARY"

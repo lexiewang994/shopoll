@@ -1,0 +1,37 @@
+name: Shopoll CI
+
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/shopoll
+      SHOPIFY_API_KEY: ci_key
+      SHOPIFY_API_SECRET: ci_secret_ci_secret_ci_secret_ci_secret
+      SHOPIFY_APP_URL: http://127.0.0.1:3000
+      SHOP_CUSTOM_DOMAIN: shop.harborinno.com
+      SCOPES: read_products,read_orders,read_discounts,write_discounts,read_fulfillments,write_pixels,read_customer_events,write_app_proxy
+      SHOPOLL_ENCRYPTION_KEY: Y2lfZW5jcnlwdGlvbl9rZXlfMzJfYnl0ZXNfbG9uZw
+      SHOPOLL_TOKEN_PEPPER: ci-token-pepper
+      DEMO_MODE: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma validate
+      - run: npx prisma generate
+      - run: npm test
+      - run: npm run test:extensions
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+      - run: npm exec shopify app build -- --no-color

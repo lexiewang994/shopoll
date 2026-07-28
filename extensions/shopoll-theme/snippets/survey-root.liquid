@@ -1,0 +1,46 @@
+<div
+  id="shopoll-{{ block.id }}"
+  class="shopoll shopoll--{{ mode }}"
+  data-shopoll-root
+  data-runtime-url="{{ 'shopoll-runtime.js' | asset_url }}"
+  data-mode="{{ mode }}"
+  data-placement-key="{{ placement_key | escape }}"
+  data-api-base="{{ api_base | escape }}"
+  data-page-type="{{ request.page_type | escape }}"
+  data-path="{{ request.path | escape }}"
+  data-locale="{{ localization.language.iso_code | default: 'en' | escape }}"
+  data-country="{{ localization.country.iso_code | default: '' | escape }}"
+  data-product-id="{% if product %}gid://shopify/Product/{{ product.id }}{% endif %}"
+  data-variant-id="{% if product.selected_or_first_available_variant %}gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}{% endif %}"
+  data-product-handle="{{ product.handle | default: '' | escape }}"
+  data-collection-handle="{{ collection.handle | default: '' | escape }}"
+  data-collection-ids="{% if product %}{% for product_collection in product.collections %}gid://shopify/Collection/{{ product_collection.id }}{% unless forloop.last %},{% endunless %}{% endfor %}{% elsif collection %}gid://shopify/Collection/{{ collection.id }}{% endif %}"
+  data-cart-product-ids="{% for line_item in cart.items %}gid://shopify/Product/{{ line_item.product.id }}{% unless forloop.last %},{% endunless %}{% endfor %}"
+  data-trigger-mode="{{ trigger_mode | default: 'server' | escape }}"
+  data-delay-seconds="{{ delay_seconds | default: 8 }}"
+  data-scroll-percent="{{ scroll_percent | default: 50 }}"
+  data-mobile-fallback="{{ mobile_fallback | default: 'timed' | escape }}"
+  data-mobile-delay-seconds="{{ mobile_delay_seconds | default: 12 }}"
+  data-mobile-scroll-percent="{{ mobile_scroll_percent | default: 60 }}"
+  data-label-loading="{{ 'shopoll.loading' | t | escape }}"
+  data-label-close="{{ 'shopoll.close' | t | escape }}"
+  data-label-next="{{ 'shopoll.next' | t | escape }}"
+  data-label-back="{{ 'shopoll.back' | t | escape }}"
+  data-label-submit="{{ 'shopoll.submit' | t | escape }}"
+  data-label-retry="{{ 'shopoll.retry' | t | escape }}"
+  data-label-required="{{ 'shopoll.required' | t | escape }}"
+  data-label-consent-required="{{ 'shopoll.consent_required' | t | escape }}"
+  data-label-error="{{ 'shopoll.error' | t | escape }}"
+  data-label-question="{{ 'shopoll.question' | t | escape }}"
+  data-label-other="{{ 'shopoll.other' | t | escape }}"
+  data-label-thank-you="{{ 'shopoll.thank_you' | t | escape }}"
+  data-label-reward-pending="{{ 'shopoll.reward_pending' | t | escape }}"
+  {% if mode == 'popup' %}hidden{% endif %}
+>
+  {% if mode == 'inline' %}
+    <div class="shopoll__placeholder" role="status" aria-live="polite">
+      <span class="shopoll__spinner" aria-hidden="true"></span>
+      <span class="shopoll__sr-only">{{ 'shopoll.loading' | t }}</span>
+    </div>
+  {% endif %}
+</div>

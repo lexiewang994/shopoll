@@ -1,0 +1,31 @@
+{% render 'survey-root',
+  block: block,
+  mode: 'inline',
+  placement_key: block.settings.placement_key,
+  api_base: block.settings.api_base_path
+%}
+
+{% schema %}
+{
+  "name": "t:inline.name",
+  "target": "section",
+  "javascript": "shopoll.js",
+  "stylesheet": "shopoll.css",
+  "settings": [
+    {
+      "type": "text",
+      "id": "placement_key",
+      "label": "t:inline.placement_key.label",
+      "info": "t:inline.placement_key.info",
+      "default": "storefront-inline"
+    },
+    {
+      "type": "text",
+      "id": "api_base_path",
+      "label": "t:common.api_base.label",
+      "info": "t:common.api_base.info",
+      "default": "/apps/shopoll"
+    }
+  ]
+}
+{% endschema %}

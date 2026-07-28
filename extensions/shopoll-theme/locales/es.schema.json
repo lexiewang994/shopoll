@@ -1,0 +1,39 @@
+{
+  "inline": {
+    "name": "Encuesta integrada",
+    "placement_key": {
+      "label": "Clave de ubicaci\u00f3n",
+      "info": "Selecciona la ubicaci\u00f3n publicada de Shopoll para este bloque."
+    }
+  },
+  "popup": {
+    "name": "Encuesta emergente",
+    "placement_key": {
+      "label": "Clave de ubicaci\u00f3n",
+      "info": "Selecciona la ubicaci\u00f3n emergente publicada de Shopoll."
+    },
+    "trigger": {
+      "label": "Activador",
+      "server": "Usar reglas de Shopoll",
+      "timed": "Tiempo en la p\u00e1gina",
+      "scroll": "Profundidad de desplazamiento",
+      "exit": "Intenci\u00f3n de salida en escritorio",
+      "add_to_cart": "A\u00f1adir al carrito"
+    },
+    "delay": { "label": "Espera en escritorio" },
+    "scroll": { "label": "Desplazamiento en escritorio" },
+    "mobile_fallback": {
+      "label": "Alternativa m\u00f3vil de salida",
+      "timed": "Tiempo en la p\u00e1gina",
+      "scroll": "Profundidad de desplazamiento"
+    },
+    "mobile_delay": { "label": "Espera en m\u00f3vil" },
+    "mobile_scroll": { "label": "Desplazamiento en m\u00f3vil" }
+  },
+  "common": {
+    "api_base": {
+      "label": "Ruta API del proxy de la app",
+      "info": "Mant\u00e9n el valor predeterminado salvo que cambie la subruta del proxy."
+    }
+  }
+}

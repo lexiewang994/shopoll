@@ -1,0 +1,39 @@
+api_version = "2026-07"
+
+[[extensions]]
+type = "ui_extension"
+name = "Shopoll order survey"
+description = "Shows an eligible Shopoll survey after purchase and on order status pages."
+handle = "shopoll-checkout-survey"
+uid = "1536e1c0-10ec-6e94-50af-ccdc43b885ff151efade"
+
+[[extensions.targeting]]
+target = "purchase.thank-you.block.render"
+module = "./src/thank-you.tsx"
+
+[[extensions.targeting]]
+target = "customer-account.order-status.block.render"
+module = "./src/order-status.tsx"
+
+[extensions.capabilities]
+network_access = true
+
+[extensions.settings]
+
+[[extensions.settings.fields]]
+key = "api_url"
+type = "single_line_text_field"
+name = "Shopoll API URL"
+description = "Optional HTTPS app origin. Falls back to SHOPIFY_APP_URL at build time."
+
+[[extensions.settings.fields]]
+key = "thank_you_placement"
+type = "single_line_text_field"
+name = "Thank you placement key"
+description = "Defaults to thank-you."
+
+[[extensions.settings.fields]]
+key = "order_status_placement"
+type = "single_line_text_field"
+name = "Order status placement key"
+description = "Defaults to order-status."

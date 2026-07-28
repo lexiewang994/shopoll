@@ -1,0 +1,100 @@
+{% render 'survey-root',
+  block: block,
+  mode: 'popup',
+  placement_key: block.settings.placement_key,
+  api_base: block.settings.api_base_path,
+  trigger_mode: block.settings.trigger_mode,
+  delay_seconds: block.settings.delay_seconds,
+  scroll_percent: block.settings.scroll_percent,
+  mobile_fallback: block.settings.mobile_fallback,
+  mobile_delay_seconds: block.settings.mobile_delay_seconds,
+  mobile_scroll_percent: block.settings.mobile_scroll_percent
+%}
+
+{% schema %}
+{
+  "name": "t:popup.name",
+  "target": "body",
+  "javascript": "shopoll.js",
+  "stylesheet": "shopoll.css",
+  "settings": [
+    {
+      "type": "text",
+      "id": "placement_key",
+      "label": "t:popup.placement_key.label",
+      "info": "t:popup.placement_key.info",
+      "default": "storefront-popup"
+    },
+    {
+      "type": "select",
+      "id": "trigger_mode",
+      "label": "t:popup.trigger.label",
+      "default": "server",
+      "options": [
+        { "value": "server", "label": "t:popup.trigger.server" },
+        { "value": "timed", "label": "t:popup.trigger.timed" },
+        { "value": "scroll", "label": "t:popup.trigger.scroll" },
+        { "value": "exit", "label": "t:popup.trigger.exit" },
+        { "value": "add_to_cart", "label": "t:popup.trigger.add_to_cart" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "delay_seconds",
+      "label": "t:popup.delay.label",
+      "min": 1,
+      "max": 60,
+      "step": 1,
+      "unit": "s",
+      "default": 8
+    },
+    {
+      "type": "range",
+      "id": "scroll_percent",
+      "label": "t:popup.scroll.label",
+      "min": 10,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "default": 50
+    },
+    {
+      "type": "select",
+      "id": "mobile_fallback",
+      "label": "t:popup.mobile_fallback.label",
+      "default": "timed",
+      "options": [
+        { "value": "timed", "label": "t:popup.mobile_fallback.timed" },
+        { "value": "scroll", "label": "t:popup.mobile_fallback.scroll" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "mobile_delay_seconds",
+      "label": "t:popup.mobile_delay.label",
+      "min": 1,
+      "max": 60,
+      "step": 1,
+      "unit": "s",
+      "default": 12
+    },
+    {
+      "type": "range",
+      "id": "mobile_scroll_percent",
+      "label": "t:popup.mobile_scroll.label",
+      "min": 10,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "default": 60
+    },
+    {
+      "type": "text",
+      "id": "api_base_path",
+      "label": "t:common.api_base.label",
+      "info": "t:common.api_base.info",
+      "default": "/apps/shopoll"
+    }
+  ]
+}
+{% endschema %}

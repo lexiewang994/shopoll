@@ -1,0 +1,39 @@
+{
+  "inline": {
+    "name": "Inline survey",
+    "placement_key": {
+      "label": "Placement key",
+      "info": "Selects the published Shopoll placement for this block."
+    }
+  },
+  "popup": {
+    "name": "Survey popup",
+    "placement_key": {
+      "label": "Placement key",
+      "info": "Selects the published Shopoll popup placement."
+    },
+    "trigger": {
+      "label": "Trigger source",
+      "server": "Use Shopoll rules",
+      "timed": "Time on page",
+      "scroll": "Scroll depth",
+      "exit": "Desktop exit intent",
+      "add_to_cart": "Add to cart"
+    },
+    "delay": { "label": "Desktop delay" },
+    "scroll": { "label": "Desktop scroll depth" },
+    "mobile_fallback": {
+      "label": "Mobile exit fallback",
+      "timed": "Time on page",
+      "scroll": "Scroll depth"
+    },
+    "mobile_delay": { "label": "Mobile delay" },
+    "mobile_scroll": { "label": "Mobile scroll depth" }
+  },
+  "common": {
+    "api_base": {
+      "label": "App proxy API path",
+      "info": "Keep the default unless the app proxy subpath was changed."
+    }
+  }
+}

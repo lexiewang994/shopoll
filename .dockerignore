@@ -1,0 +1,12 @@
+.cache
+.git
+.react-router
+.shopify
+.env
+.env.*
+!.env.example
+build
+coverage
+node_modules
+playwright-report
+test-results

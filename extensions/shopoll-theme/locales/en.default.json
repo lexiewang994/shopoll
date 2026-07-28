@@ -1,0 +1,17 @@
+{
+  "shopoll": {
+    "loading": "Loading survey",
+    "close": "Close survey",
+    "next": "Next",
+    "back": "Back",
+    "submit": "Submit",
+    "retry": "Try again",
+    "required": "Please answer this question.",
+    "consent_required": "Please confirm your consent before continuing.",
+    "error": "We couldn't save your answer. Please try again.",
+    "question": "Question",
+    "other": "Other",
+    "thank_you": "Thank you",
+    "reward_pending": "Your discount code is being prepared."
+  }
+}

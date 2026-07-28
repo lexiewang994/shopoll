@@ -1,0 +1,17 @@
+{
+  "loading": "Umfrage wird geladen",
+  "configurationMissing": "Legen Sie die Shopoll-API-URL fest, bevor Sie diese Umfrage in der Vorschau anzeigen.",
+  "questionProgress": "Frage {current} von {total}",
+  "next": "Weiter",
+  "back": "Zur\u00fcck",
+  "submit": "Absenden",
+  "retry": "Erneut versuchen",
+  "required": "Bitte beantworten Sie diese Frage.",
+  "consentRequired": "Bitte best\u00e4tigen Sie Ihre Einwilligung, bevor Sie fortfahren.",
+  "saveError": "Ihre Antwort konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+  "loadError": "Die Umfrage ist vor\u00fcbergehend nicht verf\u00fcgbar.",
+  "thankYou": "Vielen Dank",
+  "closeComplete": "Ihre Antwort wurde gespeichert.",
+  "rewardLabel": "Ihr Rabattcode",
+  "rewardPending": "Ihr Rabattcode wird vorbereitet."
+}

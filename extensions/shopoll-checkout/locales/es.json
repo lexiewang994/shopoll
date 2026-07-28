@@ -1,0 +1,17 @@
+{
+  "loading": "Cargando encuesta",
+  "configurationMissing": "Configura la URL de la API de Shopoll antes de obtener una vista previa.",
+  "questionProgress": "Pregunta {current} de {total}",
+  "next": "Siguiente",
+  "back": "Atr\u00e1s",
+  "submit": "Enviar",
+  "retry": "Intentar de nuevo",
+  "required": "Responde esta pregunta.",
+  "consentRequired": "Confirma tu consentimiento antes de continuar.",
+  "saveError": "No pudimos guardar tu respuesta. Int\u00e9ntalo de nuevo.",
+  "loadError": "La encuesta no est\u00e1 disponible temporalmente.",
+  "thankYou": "Gracias",
+  "closeComplete": "Tu respuesta se ha guardado.",
+  "rewardLabel": "Tu c\u00f3digo de descuento",
+  "rewardPending": "Estamos preparando tu c\u00f3digo de descuento."
+}

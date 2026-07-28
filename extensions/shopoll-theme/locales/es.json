@@ -1,0 +1,17 @@
+{
+  "shopoll": {
+    "loading": "Cargando encuesta",
+    "close": "Cerrar encuesta",
+    "next": "Siguiente",
+    "back": "Atr\u00e1s",
+    "submit": "Enviar",
+    "retry": "Intentar de nuevo",
+    "required": "Responde esta pregunta.",
+    "consent_required": "Confirma tu consentimiento antes de continuar.",
+    "error": "No pudimos guardar tu respuesta. Int\u00e9ntalo de nuevo.",
+    "question": "Pregunta",
+    "other": "Otro",
+    "thank_you": "Gracias",
+    "reward_pending": "Estamos preparando tu c\u00f3digo de descuento."
+  }
+}

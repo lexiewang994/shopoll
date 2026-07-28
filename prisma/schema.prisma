@@ -1,0 +1,456 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SurveyStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  ARCHIVED
+}
+
+enum SurveyKind {
+  PURCHASE_MOTIVATION
+  ATTRIBUTION
+  PURCHASE_BARRIER
+  ABANDONMENT
+  NPS
+  CSAT
+  PRODUCT_FEEDBACK
+  CUSTOM
+}
+
+enum Surface {
+  THANK_YOU
+  ORDER_STATUS
+  THEME_INLINE
+  THEME_POPUP
+  STANDALONE
+  KLAVIYO_EMAIL
+  KLAVIYO_SMS
+}
+
+enum ResponseStatus {
+  VIEWED
+  STARTED
+  PARTIAL
+  COMPLETED
+  ABANDONED
+}
+
+enum RewardType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_SHIPPING
+}
+
+enum RewardStatus {
+  PENDING
+  ISSUED
+  FAILED
+  REDEEMED
+  EXPIRED
+}
+
+enum IntegrationEventStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  DISCARDED
+}
+
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+
+  @@index([shop])
+}
+
+model Shop {
+  id                      String               @id @default(cuid())
+  domain                  String               @unique
+  active                  Boolean              @default(true)
+  timezone                String               @default("Asia/Shanghai")
+  defaultCurrency         String               @default("USD")
+  adminLocale             String               @default("zh-CN")
+  defaultSurveyLocale     String               @default("en")
+  contactQuestionsEnabled Boolean              @default(false)
+  retentionDays           Int                  @default(730)
+  sensitiveRetentionDays  Int                  @default(90)
+  installedAt             DateTime             @default(now())
+  uninstalledAt           DateTime?
+  purgeAfter              DateTime?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  surveys                 Survey[]
+  productMappings         ProductMapping[]
+  reportSubscriptions     ReportSubscription[]
+}
+
+model Survey {
+  id              String          @id @default(cuid())
+  shopDomain      String
+  slug            String
+  name            String
+  description     String?
+  kind            SurveyKind
+  status          SurveyStatus    @default(DRAFT)
+  priority        Int             @default(0)
+  enabledLocales  String[]        @default(["en", "de", "es"])
+  draftDefinition Json
+  activeVersionId String?         @unique
+  createdByHash   String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  shop            Shop            @relation(fields: [shopDomain], references: [domain], onDelete: Cascade)
+  activeVersion   SurveyVersion?  @relation("ActiveSurveyVersion", fields: [activeVersionId], references: [id], onDelete: SetNull)
+  versions        SurveyVersion[] @relation("SurveyVersions")
+  placements      Placement[]
+  auditLogs       AuditLog[]
+
+  @@unique([shopDomain, slug])
+  @@index([shopDomain, status])
+}
+
+model SurveyVersion {
+  id              String            @id @default(cuid())
+  surveyId        String
+  version         Int
+  schemaVersion   Int               @default(1)
+  definition      Json
+  checksum        String
+  releaseNote     String?
+  publishedAt     DateTime          @default(now())
+  survey          Survey            @relation("SurveyVersions", fields: [surveyId], references: [id], onDelete: Cascade)
+  activeForSurvey Survey?           @relation("ActiveSurveyVersion")
+  invites         Invite[]
+  responses       ResponseSession[]
+  impressions     Impression[]
+
+  @@unique([surveyId, version])
+  @@index([surveyId, publishedAt])
+}
+
+model Placement {
+  id               String            @id @default(cuid())
+  surveyId         String
+  surface          Surface
+  enabled          Boolean           @default(false)
+  priority         Int               @default(0)
+  triggerConfig    Json
+  styleConfig      Json
+  startsAt         DateTime?
+  endsAt           DateTime?
+  sampleRate       Float             @default(1)
+  frequencyCapDays Int               @default(14)
+  maxResponses     Int?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  survey           Survey            @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  audienceRules    AudienceRule[]
+  responses        ResponseSession[]
+  impressions      Impression[]
+  invites          Invite[]
+
+  @@unique([surveyId, surface])
+  @@index([surface, enabled, priority])
+}
+
+model AudienceRule {
+  id          String    @id @default(cuid())
+  placementId String
+  groupIndex  Int       @default(0)
+  groupJoin   String    @default("OR")
+  field       String
+  operator    String
+  value       Json
+  sortOrder   Int       @default(0)
+  placement   Placement @relation(fields: [placementId], references: [id], onDelete: Cascade)
+
+  @@index([placementId, groupIndex, sortOrder])
+}
+
+model Invite {
+  id                String           @id @default(cuid())
+  surveyVersionId   String
+  placementId       String?
+  surface           Surface
+  tokenHash         String           @unique
+  orderGidHash      String?
+  orderGidEncrypted String?
+  klaviyoProfileId  String?
+  profileEmailHash  String?
+  profilePhoneHash  String?
+  productFacts      Json?
+  context           Json
+  idempotencyKey    String           @unique
+  expiresAt         DateTime
+  usedAt            DateTime?
+  createdAt         DateTime         @default(now())
+  surveyVersion     SurveyVersion    @relation(fields: [surveyVersionId], references: [id], onDelete: Cascade)
+  placement         Placement?       @relation(fields: [placementId], references: [id], onDelete: SetNull)
+  response          ResponseSession?
+
+  @@index([orderGidHash])
+  @@index([placementId])
+  @@index([profileEmailHash])
+  @@index([profilePhoneHash])
+  @@index([expiresAt])
+}
+
+model ResponseSession {
+  id                String         @id @default(cuid())
+  shopDomain        String
+  surveyVersionId   String
+  placementId       String?
+  inviteId          String?        @unique
+  tokenHash         String         @unique
+  dedupeKey         String         @unique
+  surface           Surface
+  status            ResponseStatus @default(VIEWED)
+  locale            String         @default("en")
+  visitorHash       String?
+  orderGidHash      String?
+  orderGidEncrypted String?
+  targetProductGid  String?
+  productFacts      Json?
+  context           Json
+  startedAt         DateTime?
+  completedAt       DateTime?
+  lastSeenAt        DateTime       @default(now())
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  surveyVersion     SurveyVersion  @relation(fields: [surveyVersionId], references: [id], onDelete: Cascade)
+  placement         Placement?     @relation(fields: [placementId], references: [id], onDelete: SetNull)
+  invite            Invite?        @relation(fields: [inviteId], references: [id], onDelete: SetNull)
+  answers           Answer[]
+  impressions       Impression[]
+  rewardIssue       RewardIssue?
+
+  @@index([shopDomain, createdAt])
+  @@index([surveyVersionId, status, createdAt])
+  @@index([orderGidHash])
+  @@index([visitorHash])
+}
+
+model Answer {
+  id                String          @id @default(cuid())
+  responseSessionId String
+  questionId        String
+  questionSnapshot  Json
+  value             Json?
+  encryptedValue    String?
+  emailIdentityHash String?
+  phoneIdentityHash String?
+  isSensitive       Boolean         @default(false)
+  idempotencyKey    String?         @unique
+  answeredAt        DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  responseSession   ResponseSession @relation(fields: [responseSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([responseSessionId, questionId])
+  @@index([questionId, answeredAt])
+  @@index([isSensitive, answeredAt])
+  @@index([emailIdentityHash])
+  @@index([phoneIdentityHash])
+}
+
+model Impression {
+  id                String           @id @default(cuid())
+  surveyVersionId   String
+  placementId       String?
+  responseSessionId String?
+  visitorHash       String?
+  surface           Surface
+  context           Json
+  createdAt         DateTime         @default(now())
+  surveyVersion     SurveyVersion    @relation(fields: [surveyVersionId], references: [id], onDelete: Cascade)
+  placement         Placement?       @relation(fields: [placementId], references: [id], onDelete: SetNull)
+  responseSession   ResponseSession? @relation(fields: [responseSessionId], references: [id], onDelete: SetNull)
+
+  @@index([surveyVersionId, createdAt])
+  @@index([placementId, createdAt])
+}
+
+model OrderFact {
+  id                     String   @id @default(cuid())
+  shopDomain             String
+  orderGidHash           String   @unique
+  orderGidEncrypted      String
+  confirmationNumberHash String?
+  orderCreatedAt         DateTime
+  amount                 Decimal  @db.Decimal(18, 2)
+  currency               String
+  market                 String?
+  locale                 String?
+  customerOrderIndex     Int?
+  isFirstOrder           Boolean?
+  productFacts           Json
+  utm                    Json?
+  source                 String?
+  discountCodes          Json?
+  syncedAt               DateTime @default(now())
+
+  @@index([shopDomain, orderCreatedAt])
+  @@index([source, orderCreatedAt])
+}
+
+model ProductMapping {
+  id         String   @id @default(cuid())
+  shopDomain String
+  productKey String
+  productGid String?
+  handle     String?
+  title      String
+  isCore     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  shop       Shop     @relation(fields: [shopDomain], references: [domain], onDelete: Cascade)
+
+  @@unique([shopDomain, productKey])
+  @@index([shopDomain, productGid])
+}
+
+model RewardIssue {
+  id                 String          @id @default(cuid())
+  responseSessionId  String          @unique
+  eligibilityKey     String?         @unique
+  type               RewardType
+  status             RewardStatus    @default(PENDING)
+  codeEncrypted      String?
+  codeLast4          String?
+  shopifyDiscountGid String?
+  configSnapshot     Json
+  expiresAt          DateTime?
+  issuedAt           DateTime?
+  redeemedAt         DateTime?
+  errorCode          String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  responseSession    ResponseSession @relation(fields: [responseSessionId], references: [id], onDelete: Cascade)
+}
+
+model PrivacyExport {
+  id               String   @id @default(cuid())
+  shopDomain       String
+  requestHash      String   @unique
+  customerHash     String?
+  payloadEncrypted String
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+
+  @@index([shopDomain, createdAt])
+  @@index([expiresAt])
+}
+
+model IntegrationConfig {
+  id              String    @id @default(cuid())
+  shopDomain      String
+  provider        String
+  encryptedConfig String
+  status          String    @default("DISCONNECTED")
+  lastCheckedAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([shopDomain, provider])
+}
+
+model IntegrationEvent {
+  id             String                 @id @default(cuid())
+  shopDomain     String
+  provider       String
+  eventType      String
+  idempotencyKey String                 @unique
+  payload        Json
+  status         IntegrationEventStatus @default(PENDING)
+  attempts       Int                    @default(0)
+  nextAttemptAt  DateTime               @default(now())
+  processedAt    DateTime?
+  errorCode      String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([shopDomain, provider, createdAt])
+}
+
+model ReportSubscription {
+  id                 String   @id @default(cuid())
+  shopDomain         String
+  recipientEncrypted String
+  klaviyoProfileId   String?
+  locale             String   @default("zh-CN")
+  timezone           String   @default("Asia/Shanghai")
+  weekday            Int      @default(1)
+  hour               Int      @default(9)
+  enabled            Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  shop               Shop     @relation(fields: [shopDomain], references: [domain], onDelete: Cascade)
+
+  @@index([shopDomain, enabled])
+}
+
+model PixelEvent {
+  id          String   @id @default(cuid())
+  shopDomain  String
+  visitorHash String
+  eventType   String
+  payload     Json
+  occurredAt  DateTime
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([shopDomain, visitorHash, occurredAt])
+  @@index([expiresAt])
+}
+
+model WebhookReceipt {
+  id          String   @id @default(cuid())
+  provider    String
+  topic       String
+  externalId  String
+  payloadHash String
+  processedAt DateTime @default(now())
+
+  @@unique([provider, topic, externalId])
+  @@index([processedAt])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  shopDomain   String
+  actorHash    String?
+  action       String
+  resourceType String
+  resourceId   String?
+  changes      Json?
+  createdAt    DateTime @default(now())
+  surveyId     String?
+  survey       Survey?  @relation(fields: [surveyId], references: [id], onDelete: SetNull)
+
+  @@index([shopDomain, createdAt])
+  @@index([resourceType, resourceId])
+}

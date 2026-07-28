@@ -1,0 +1,18 @@
+type = "web_pixel_extension"
+name = "Shopoll customer events"
+uid = "9e4ce175-b913-f03d-0c01-2e82653dbf52d4f45446"
+runtime_context = "strict"
+
+[customer_privacy]
+analytics = true
+marketing = false
+preferences = false
+sale_of_data = "disabled"
+
+[settings]
+type = "object"
+
+[settings.fields.endpointUrl]
+name = "Shopoll endpoint URL"
+description = "Optional signed storefront App Proxy base. Leave empty to use /apps/shopoll."
+type = "single_line_text_field"

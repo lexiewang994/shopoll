@@ -1,0 +1,17 @@
+{
+  "loading": "Loading survey",
+  "configurationMissing": "Set the Shopoll API URL before previewing this survey.",
+  "questionProgress": "Question {current} of {total}",
+  "next": "Next",
+  "back": "Back",
+  "submit": "Submit",
+  "retry": "Try again",
+  "required": "Please answer this question.",
+  "consentRequired": "Please confirm your consent before continuing.",
+  "saveError": "We couldn't save your answer. Please try again.",
+  "loadError": "The survey is temporarily unavailable.",
+  "thankYou": "Thank you",
+  "closeComplete": "Your response has been recorded.",
+  "rewardLabel": "Your discount code",
+  "rewardPending": "Your discount code is being prepared."
+}

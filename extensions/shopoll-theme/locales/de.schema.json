@@ -1,0 +1,39 @@
+{
+  "inline": {
+    "name": "Inline-Umfrage",
+    "placement_key": {
+      "label": "Platzierungsschl\u00fcssel",
+      "info": "W\u00e4hlt die ver\u00f6ffentlichte Shopoll-Platzierung f\u00fcr diesen Block."
+    }
+  },
+  "popup": {
+    "name": "Umfrage-Pop-up",
+    "placement_key": {
+      "label": "Platzierungsschl\u00fcssel",
+      "info": "W\u00e4hlt die ver\u00f6ffentlichte Shopoll-Pop-up-Platzierung."
+    },
+    "trigger": {
+      "label": "Ausl\u00f6ser",
+      "server": "Shopoll-Regeln verwenden",
+      "timed": "Zeit auf der Seite",
+      "scroll": "Scrolltiefe",
+      "exit": "Desktop-Exit-Intent",
+      "add_to_cart": "Zum Warenkorb hinzugef\u00fcgt"
+    },
+    "delay": { "label": "Desktop-Verz\u00f6gerung" },
+    "scroll": { "label": "Desktop-Scrolltiefe" },
+    "mobile_fallback": {
+      "label": "Mobile Exit-Alternative",
+      "timed": "Zeit auf der Seite",
+      "scroll": "Scrolltiefe"
+    },
+    "mobile_delay": { "label": "Mobile Verz\u00f6gerung" },
+    "mobile_scroll": { "label": "Mobile Scrolltiefe" }
+  },
+  "common": {
+    "api_base": {
+      "label": "App-Proxy-API-Pfad",
+      "info": "Standardwert beibehalten, sofern der App-Proxy-Unterpfad nicht ge\u00e4ndert wurde."
+    }
+  }
+}
