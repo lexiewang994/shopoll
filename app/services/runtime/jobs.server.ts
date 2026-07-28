@@ -15,6 +15,7 @@ import {
   type ShopifyDiscountRewardRequest,
 } from "../integrations";
 import { decryptText, encryptText, sha256 } from "../security.server";
+import { shopDomainAliases } from "../shop-domain.server";
 import { asJson, deterministicOpaqueToken, isRecord } from "./common.server";
 
 function eventPayload(value: Prisma.JsonValue): Record<string, unknown> {
@@ -215,6 +216,32 @@ function duplicateDiscountError(error: unknown): boolean {
       || item.message.toLowerCase().includes("already exists"));
 }
 
+export function configuredRewardShopDomain(): string {
+  const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN?.trim().toLowerCase();
+  if (!shopDomain) throw new Error("SHOPIFY_SHOP_DOMAIN must be configured to issue Shopify rewards");
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shopDomain)) {
+    throw new Error("SHOPIFY_SHOP_DOMAIN must be a *.myshopify.com domain to issue Shopify rewards");
+  }
+  return shopDomain;
+}
+
+export function selectConfiguredOfflineSession<T extends { shop: string; isOnline: boolean }>(
+  sessions: readonly T[],
+  configuredShopDomain: string,
+): T | undefined {
+  const expected = configuredShopDomain.trim().toLowerCase();
+  return sessions.find((session) =>
+    !session.isOnline && session.shop.trim().toLowerCase() === expected);
+}
+
+export function isConfiguredRewardShopAlias(
+  shopDomain: string,
+  aliases: readonly string[],
+): boolean {
+  const normalized = shopDomain.trim().toLowerCase();
+  return aliases.some((alias) => alias.trim().toLowerCase() === normalized);
+}
+
 export async function issueShopifyReward(rewardIssueId: string): Promise<void> {
   const reward = await db.rewardIssue.findUnique({
     where: { id: rewardIssueId },
@@ -225,9 +252,16 @@ export async function issueShopifyReward(rewardIssueId: string): Promise<void> {
     },
   });
   if (!reward || reward.status === RewardStatus.ISSUED) return;
-  const sessions = await db.session.findMany({ where: { isOnline: false }, orderBy: { expires: "desc" } });
-  const session = sessions.find((item) => item.shop === reward.responseSession.shopDomain)
-    ?? sessions.find((item) => item.shop.endsWith(".myshopify.com"));
+  const configuredShopDomain = configuredRewardShopDomain();
+  const configuredShopAliases = shopDomainAliases(configuredShopDomain);
+  if (!isConfiguredRewardShopAlias(reward.responseSession.shopDomain, configuredShopAliases)) {
+    throw new Error("Reward response session belongs to an unconfigured shop");
+  }
+  const sessions = await db.session.findMany({
+    where: { isOnline: false, shop: configuredShopDomain },
+    orderBy: { expires: "desc" },
+  });
+  const session = selectConfiguredOfflineSession(sessions, configuredShopDomain);
   if (!session) throw new Error("Shopify offline session is unavailable");
   const code = `SHOPOLL-${sha256(reward.id).slice(0, 10).toUpperCase()}`;
   let discountNodeId: string | undefined;
