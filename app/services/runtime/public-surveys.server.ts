@@ -542,7 +542,409 @@ export async function createPublicSession(
   const input = rawInput as SessionInput;
   assertSchemaVersion(input.schemaVersion);
   let rawContext = isRecord(input.context) ? input.context : {};
-  const resumeToken = optional…4386 tokens truncated… "questionId", 128);
+  const resumeToken = optionalString(input.resumeToken, 512);
+  if (resumeToken) {
+    const resumed = await sessionByResumeToken(resumeToken);
+    if (resumed) {
+      if (!resumed.surveyVersion.survey.shop.active) {
+        throw new RuntimeError(410, "shop_inactive", "This survey is no longer collecting responses");
+      }
+      authorizeLoadedSession(identity, resumed, resumeToken);
+      const requestedVersion = optionalString(input.surveyVersionId, 128);
+      if (requestedVersion && requestedVersion !== resumed.surveyVersionId) {
+        throw new RuntimeError(409, "resume_version_mismatch", "The saved response belongs to another survey version");
+      }
+      await db.responseSession.update({ where: { id: resumed.id }, data: { lastSeenAt: new Date() } });
+      return sessionEnvelope(resumed, resumeToken);
+    }
+    throw new RuntimeError(401, "invalid_resume_token", "The response resume token is invalid");
+  }
+
+  const inviteToken = optionalString(input.inviteToken ?? rawContext.inviteToken, 512);
+  const invite = inviteToken ? await inviteForToken(inviteToken) : null;
+  if (identity.mode === "standalone" && !invite) {
+    throw new RuntimeError(401, "invite_token_required", "A valid invite token is required");
+  }
+  if (invite && invite.expiresAt <= new Date()) {
+    throw new RuntimeError(410, "invite_expired", "This survey invitation has expired");
+  }
+  if (invite?.response) {
+    const token = deterministicOpaqueToken("response-session", invite.response.dedupeKey);
+    return sessionEnvelope(invite.response, token);
+  }
+
+  const requestedVersionId = optionalString(input.surveyVersionId, 128);
+  const requestedSurveyId = optionalString(input.surveyId, 128);
+  const placementId = optionalString(input.placementId, 128);
+  if (!invite) {
+    if (!requestedVersionId) {
+      throw new RuntimeError(400, "invalid_request", "surveyVersionId is required");
+    }
+    if (!placementId) throw new RuntimeError(409, "placement_required", "An active placement is required");
+  }
+  const versionId = invite?.surveyVersionId ?? requiredString(requestedVersionId, "surveyVersionId", 128);
+  const version = invite?.surveyVersion ?? await db.surveyVersion.findUnique({
+    where: { id: versionId },
+    include: { survey: { include: { shop: true } } },
+  });
+  if (!version) throw new RuntimeError(404, "survey_not_found", "Survey version was not found");
+  if (!version.survey.shop.active) {
+    throw new RuntimeError(410, "shop_inactive", "This survey is no longer collecting responses");
+  }
+  if (version.survey.status !== SurveyStatus.PUBLISHED) {
+    throw new RuntimeError(410, "survey_inactive", "This survey is no longer collecting responses");
+  }
+  if (!invite) assertIdentityCanAccessShop(identity, version.survey.shopDomain);
+  if (requestedSurveyId && requestedSurveyId !== version.surveyId) {
+    throw new RuntimeError(409, "survey_version_mismatch", "Survey and version do not match");
+  }
+  if (!invite && version.survey.activeVersionId !== version.id) {
+    throw new RuntimeError(409, "survey_not_published", "This survey version is not active");
+  }
+  if (!invite && !placementId) {
+    throw new RuntimeError(409, "placement_required", "An active placement is required");
+  }
+  const placement = await db.placement.findFirst({
+    where: invite
+      ? {
+          surveyId: version.surveyId,
+          surface: invite.surface,
+          ...(invite.placementId ? { id: invite.placementId } : {}),
+        }
+      : { id: placementId },
+    include: {
+      _count: {
+        select: { responses: { where: { status: ResponseStatus.COMPLETED } } },
+      },
+    },
+  });
+  if (!placement
+    || placement.surveyId !== version.surveyId
+    || (invite && placement.surface !== invite.surface)) {
+    throw new RuntimeError(409, "placement_mismatch", "Placement does not belong to this survey");
+  }
+  const surface = invite?.surface ?? placement.surface;
+  if (!invite && !surfaceMatchesIdentity(surface, identity)) {
+    throw new RuntimeError(403, "surface_mismatch", "This client cannot start that survey surface");
+  }
+  if (!invite && surfaceFromContext(rawContext.surface, rawContext.mode) !== surface) {
+    throw new RuntimeError(409, "surface_mismatch", "The requested surface does not match this placement");
+  }
+  const idempotencyKey = requiredString(input.idempotencyKey, "idempotencyKey", 255);
+  const dedupeKey = hashIdentifier(`${version.survey.shopDomain}:${idempotencyKey}`, "response-dedupe");
+  const token = deterministicOpaqueToken("response-session", dedupeKey);
+  const tokenHash = hashIdentifier(token, "public-token");
+  const orderGid = normalizeOrderGid(rawContext.orderGid);
+  const domains = shopAliases(identity.shopDomain ?? version.survey.shopDomain);
+  rawContext = await contextWithPixelHistory(rawContext, domains);
+  const orderFact = await findOrderFact(orderGid, domains);
+  if (!invite && identity.mode === "checkout" && orderGid && !orderFact) {
+    throw new RuntimeError(409, "order_not_ready", "Order facts are still being synchronized");
+  }
+  if (!invite) assertPublicOrderContext(identity, rawContext, orderGid, orderFact);
+  const orderHash = orderFact?.orderGidHash ?? (orderGid ? orderIdentityHash(version.survey.shopDomain, orderGid) : invite?.orderGidHash);
+  const definition = parseDefinition(version.definition);
+  const locale = resolvedLocale(definition, optionalString(rawContext.locale, 32));
+  const coreProducts = coreProductsFromFacts(orderFact?.productFacts ?? invite?.productFacts);
+  if (isPurchaseMotivation(definition) && (orderFact || invite?.productFacts) && coreProducts.length === 0) {
+    throw new RuntimeError(409, "accessory_only_order", "Purchase motivation is not shown for accessory-only orders");
+  }
+  const cleanContext = sanitizedPublicContext(rawContext, surface, orderFact);
+  const expectedVisitorHash = visitorHash(rawContext);
+  const expectedTargetProductGid = coreProducts.length === 1 ? coreProducts[0].productGid : undefined;
+  const resolvedOrderGid = orderGid ?? (
+    invite?.orderGidEncrypted && invite.orderGidHash
+      ? decryptText(invite.orderGidEncrypted, `invite-order:${version.survey.shopDomain}:${invite.orderGidHash}`)
+      : undefined
+  );
+  const encryptedOrderGid = resolvedOrderGid
+    ? encryptText(resolvedOrderGid, `response-order:${version.survey.shopDomain}:${orderHash}`)
+    : undefined;
+  const data = {
+    shopDomain: version.survey.shopDomain,
+    surveyVersionId: version.id,
+    placementId: placement.id,
+    inviteId: invite?.id,
+    tokenHash,
+    dedupeKey,
+    surface,
+    locale,
+    visitorHash: expectedVisitorHash,
+    orderGidHash: orderHash,
+    orderGidEncrypted: encryptedOrderGid,
+    targetProductGid: expectedTargetProductGid,
+    productFacts: asJson(orderFact?.productFacts ?? invite?.productFacts ?? []),
+    context: asJson(cleanContext),
+  } satisfies Prisma.ResponseSessionUncheckedCreateInput;
+
+  type ReplaySession = {
+    shopDomain: string;
+    surveyVersionId: string;
+    placementId: string | null;
+    inviteId: string | null;
+    surface: Surface;
+    locale: string;
+    visitorHash: string | null;
+    orderGidHash: string | null;
+    targetProductGid: string | null;
+    context: Prisma.JsonValue;
+  };
+  const assertExactReplay: (
+    existing: ReplaySession | null,
+  ) => asserts existing is ReplaySession = (existing) => {
+    if (!existing
+      || existing.shopDomain !== version.survey.shopDomain
+      || existing.surveyVersionId !== version.id
+      || existing.placementId !== placement.id
+      || existing.inviteId !== (invite?.id ?? null)
+      || existing.surface !== surface
+      || existing.locale !== locale
+      || existing.visitorHash !== (expectedVisitorHash ?? null)
+      || existing.orderGidHash !== (orderHash ?? null)
+      || existing.targetProductGid !== (expectedTargetProductGid ?? null)
+      || canonicalJson(existing.context) !== canonicalJson(cleanContext)) {
+      throw new RuntimeError(409, "idempotency_conflict", "Idempotency key was used for another session");
+    }
+  };
+
+  const existingReplay = await db.responseSession.findUnique({
+    where: { dedupeKey },
+    include: { answers: true },
+  });
+  if (existingReplay) {
+    assertExactReplay(existingReplay);
+    return sessionEnvelope(existingReplay, deterministicOpaqueToken("response-session", existingReplay.dedupeKey));
+  }
+
+  const placementExpired = (
+    (placement.startsAt !== null && placement.startsAt > new Date()) ||
+    (placement.endsAt !== null && placement.endsAt <= new Date()) ||
+    (placement.maxResponses !== null && placement._count.responses >= placement.maxResponses)
+  );
+  if (!placement.enabled || placementExpired) {
+    throw new RuntimeError(409, "placement_mismatch", "Placement is not active for this survey");
+  }
+  if (!invite) {
+    const resolution = await resolvePublicSurvey({ schemaVersion: 1, context: rawContext }, identity);
+    const resolvedSurvey = isRecord(resolution.survey) ? resolution.survey : {};
+    const resolvedPlacement = isRecord(resolution.placement) ? resolution.placement : {};
+    if (resolution.eligible !== true
+      || resolvedSurvey.versionId !== requestedVersionId
+      || resolvedPlacement.id !== placementId
+      || (requestedSurveyId && resolvedSurvey.id !== requestedSurveyId)) {
+      throw new RuntimeError(409, "survey_not_eligible", "This survey placement is not currently eligible");
+    }
+  }
+
+  try {
+    const created = await db.$transaction(async (tx) => {
+      const session = await tx.responseSession.create({ data });
+      if (coreProducts.length === 1 && definition.questions.some((question) => question.id === "core_product")) {
+        const question = definition.questions.find((item) => item.id === "core_product")!;
+        await tx.answer.create({
+          data: {
+            responseSessionId: session.id,
+            questionId: question.id,
+            questionSnapshot: asJson(question),
+            value: coreProducts[0].key,
+            idempotencyKey: `auto:${session.id}:core_product`,
+          },
+        });
+      }
+      if (invite) await tx.invite.update({ where: { id: invite.id }, data: { usedAt: new Date() } });
+      return tx.responseSession.findUniqueOrThrow({ where: { id: session.id }, include: { answers: true } });
+    });
+    return sessionEnvelope(created, token);
+  } catch (error) {
+    if (!uniqueConflict(error)) throw error;
+    const existing = await db.responseSession.findUnique({ where: { dedupeKey }, include: { answers: true } });
+    const invitedResponse = !existing && invite
+      ? await db.responseSession.findUnique({ where: { inviteId: invite.id }, include: { answers: true } })
+      : null;
+    if (invitedResponse) {
+      return sessionEnvelope(
+        invitedResponse,
+        deterministicOpaqueToken("response-session", invitedResponse.dedupeKey),
+      );
+    }
+    assertExactReplay(existing);
+    return sessionEnvelope(existing, deterministicOpaqueToken("response-session", existing.dedupeKey));
+  }
+}
+
+async function loadAuthorizedSession(
+  sessionId: string,
+  identity: PublicIdentity,
+  resumeToken: unknown,
+) {
+  const session = await db.responseSession.findUnique({
+    where: { id: sessionId },
+    include: {
+      answers: { orderBy: { answeredAt: "asc" } },
+      surveyVersion: { include: { survey: { include: { shop: true } } } },
+      invite: true,
+      rewardIssue: true,
+    },
+  });
+  if (!session) throw new RuntimeError(404, "session_not_found", "Response session was not found");
+  if (!session.surveyVersion.survey.shop.active) {
+    throw new RuntimeError(410, "shop_inactive", "This survey is no longer collecting responses");
+  }
+  authorizeLoadedSession(identity, session, resumeToken);
+  return session;
+}
+
+async function idempotencyReceipt(
+  provider: string,
+  topic: string,
+  externalId: string,
+) {
+  return db.webhookReceipt.findUnique({ where: { provider_topic_externalId: { provider, topic, externalId } } });
+}
+
+async function assertIdempotencyReplay(
+  provider: string,
+  topic: string,
+  externalId: string,
+  digest: string,
+): Promise<boolean> {
+  const receipt = await idempotencyReceipt(provider, topic, externalId);
+  if (!receipt) return false;
+  if (receipt.payloadHash !== digest) {
+    throw new RuntimeError(409, "idempotency_conflict", "Idempotency key was reused with different data");
+  }
+  return true;
+}
+
+export async function recordPublicImpression(
+  rawInput: unknown,
+  identity: PublicIdentity,
+): Promise<Record<string, unknown>> {
+  if (!isRecord(rawInput)) throw new RuntimeError(400, "invalid_request", "A JSON object is required");
+  const input = rawInput as ImpressionInput;
+  assertSchemaVersion(input.schemaVersion);
+  const sessionId = requiredString(input.sessionId, "sessionId", 128);
+  const session = await loadAuthorizedSession(sessionId, identity, input.resumeToken);
+  const idempotencyKey = requiredString(input.idempotencyKey, "idempotencyKey", 255);
+  const externalId = `${session.id}:${idempotencyKey}`;
+  const digest = payloadDigest({ sessionId, placementId: input.placementId, context: input.context });
+  if (await assertIdempotencyReplay("PUBLIC", "IMPRESSION", externalId, digest)) return { recorded: true };
+  try {
+    await db.$transaction([
+      db.webhookReceipt.create({ data: { provider: "PUBLIC", topic: "IMPRESSION", externalId, payloadHash: digest } }),
+      db.impression.create({
+        data: {
+          surveyVersionId: session.surveyVersionId,
+          placementId: session.placementId,
+          responseSessionId: session.id,
+          visitorHash: session.visitorHash,
+          surface: session.surface,
+          context: asJson(session.context),
+        },
+      }),
+    ]);
+  } catch (error) {
+    if (!uniqueConflict(error)) throw error;
+    if (!(await assertIdempotencyReplay("PUBLIC", "IMPRESSION", externalId, digest))) throw error;
+  }
+  return { recorded: true };
+}
+
+function contactEncryptionKey(): Buffer {
+  const configured = process.env.SHOPOLL_ENCRYPTION_KEY;
+  if (!configured && process.env.NODE_ENV === "production") {
+    throw new Error("SHOPOLL_ENCRYPTION_KEY must be configured in production");
+  }
+  return createHash("sha256").update(configured || "shopoll-development-encryption-key").digest();
+}
+
+function encryptedContactAnswer(
+  shopDomain: string,
+  sessionId: string,
+  questionId: string,
+  value: AnswerValue,
+): { publicValue: Prisma.InputJsonValue; encryptedValue: string } {
+  if (!isRecord(value)) throw new RuntimeError(422, "invalid_answer", "Contact answer is invalid");
+  const fields: Record<string, EncryptedContactValueV1> = {};
+  const publicValue: Record<string, unknown> = { consent: value.consent === true };
+  for (const field of ["email", "phone"] as const) {
+    if (typeof value[field] !== "string" || value[field].trim().length === 0) continue;
+    fields[field] = encryptContactValue(value[field].trim(), contactEncryptionKey(), {
+      shopId: shopDomain,
+      responseSessionId: sessionId,
+      questionId,
+      fieldType: field,
+    });
+    publicValue[field] = "[encrypted]";
+  }
+  return { publicValue: asJson(publicValue), encryptedValue: JSON.stringify({ version: 1, fields }) };
+}
+
+function answerMapFromRows(rows: readonly { questionId: string; value: Prisma.JsonValue | null }[]): AnswerMap {
+  return Object.fromEntries(rows.map((answer) => [answer.questionId, answer.value as AnswerValue]));
+}
+
+function navigationFor(
+  definition: SurveyDefinitionV1,
+  questionId: string,
+  rows: readonly { questionId: string; value: Prisma.JsonValue | null }[],
+) {
+  const next = getNextVisibleQuestion(definition, questionId, answerMapFromRows(rows));
+  return next ? { nextQuestionId: next.id, complete: false } : { complete: true };
+}
+
+export function normalizeClientAnswer(
+  question: SurveyDefinitionV1["questions"][number],
+  value: unknown,
+): AnswerValue {
+  if (
+    (question.kind === "nps" || question.kind === "csat" || question.kind === "star_rating")
+    && typeof value === "string"
+    && /^\d+$/.test(value)
+  ) {
+    return Number(value);
+  }
+  if (question.kind === "contact" && isRecord(value) && typeof value.value === "string") {
+    const field = question.collect[0];
+    return {
+      ...(field === "email" ? { email: value.value } : { phone: value.value }),
+      consent: value.consent === true,
+    };
+  }
+  return value as AnswerValue;
+}
+
+async function createKlaviyoLifecycleEvent(
+  client: DbClient,
+  session: { id: string; shopDomain: string; invite?: { klaviyoProfileId: string | null } | null },
+  type: "SURVEY_STARTED" | "SURVEY_COMPLETED",
+): Promise<void> {
+  if (!session.invite?.klaviyoProfileId) return;
+  await client.integrationEvent.upsert({
+    where: { idempotencyKey: `klaviyo:${type.toLowerCase()}:${session.id}` },
+    create: {
+      shopDomain: session.shopDomain,
+      provider: "KLAVIYO",
+      eventType: type,
+      idempotencyKey: `klaviyo:${type.toLowerCase()}:${session.id}`,
+      payload: asJson({ version: 1, responseSessionId: session.id }),
+    },
+    update: {},
+  });
+}
+
+export async function upsertPublicAnswer(
+  sessionIdValue: unknown,
+  pathQuestionId: unknown,
+  rawInput: unknown,
+  identity: PublicIdentity,
+): Promise<Record<string, unknown>> {
+  const sessionId = requiredString(sessionIdValue, "sessionId", 128);
+  if (!isRecord(rawInput)) throw new RuntimeError(400, "invalid_request", "A JSON object is required");
+  const input = rawInput as AnswerInput;
+  assertSchemaVersion(input.schemaVersion);
+  const session = await loadAuthorizedSession(sessionId, identity, input.resumeToken);
+  const questionId = requiredString(pathQuestionId ?? input.questionId, "questionId", 128);
   if (pathQuestionId && input.questionId && pathQuestionId !== input.questionId) {
     throw new RuntimeError(409, "question_mismatch", "Question IDs do not match");
   }
@@ -968,4 +1370,3 @@ export function runtimeErrorResponse(error: unknown): Response {
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
   });
 }
-
