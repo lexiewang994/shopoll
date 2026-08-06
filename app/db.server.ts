@@ -4,12 +4,10 @@ import prismaClientPackage, {
 
 const { PrismaClient } = prismaClientPackage;
 
-
 declare global {
   // eslint-disable-next-line no-var
   var prismaGlobal: PrismaClientType;
 }
-
 
 if (process.env.NODE_ENV !== "production") {
   if (!global.prismaGlobal) {
@@ -17,9 +15,6 @@ if (process.env.NODE_ENV !== "production") {
   }
 }
 
-
 const prisma = global.prismaGlobal ?? new PrismaClient();
 
-
 export default prisma;
-
