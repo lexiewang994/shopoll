@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
-import { Prisma, ResponseStatus, SurveyStatus, type Surface } from "@prisma/client";
+import prismaClientPackage, {
+  type Prisma,
+  type Surface,
+} from "@prisma/client";
 import db from "../../db.server";
 import { stableSampleBucket } from "../../domain";
 import { coreProductsFromFacts, isRecord, optionalString, normalizeOrderGid, orderIdentityHash, payloadDigest, asJson, RuntimeError, deterministicOpaqueToken, requiredString, safeAttributionValue, shopAliases, configuredShopDomains, assertConfiguredShopDomain, toAudienceContext } from "./common.server";
@@ -16,6 +19,8 @@ import {
   KlaviyoEventsClient,
   type EncryptedContactValueV1,
 } from "../integrations";
+
+const { Prisma: PrismaRuntime, ResponseStatus, SurveyStatus } = prismaClientPackage;
 
 function numberValue(value: unknown): number | undefined {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
@@ -196,7 +201,7 @@ async function enrichProductFactsWithMappings(
 }
 
 function isUnique(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+  return error instanceof PrismaRuntime.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
 export async function ingestOrderWebhook(input: {
@@ -895,3 +900,4 @@ export async function processShopRedact(
     if (!isUnique(error) || !(await privacyReplay("SHOP_REDACT", webhookId, digest))) throw error;
   }
 }
+
