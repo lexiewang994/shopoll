@@ -1,10 +1,16 @@
 import { createHash } from "node:crypto";
-import {
-  Prisma,
-  Surface,
-  SurveyKind,
-  SurveyStatus,
+import prismaClientPackage, {
+  type Prisma,
+  type Surface,
+  type SurveyKind,
 } from "@prisma/client";
+
+const {
+  Prisma: PrismaRuntime,
+  Surface: SurfaceValue,
+  SurveyKind: SurveyKindValue,
+  SurveyStatus,
+} = prismaClientPackage;
 
 import { getHarborSurveyTemplate } from "../data";
 import {
@@ -19,9 +25,9 @@ import { hashIdentifier } from "./security.server";
 import { rewardConfiguration } from "./runtime/public-surveys.server";
 
 const anonymousRewardSurfaces = new Set<Surface>([
-  Surface.THEME_INLINE,
-  Surface.THEME_POPUP,
-  Surface.STANDALONE,
+  SurfaceValue.THEME_INLINE,
+  SurfaceValue.THEME_POPUP,
+  SurfaceValue.STANDALONE,
 ]);
 
 function validatedRewardConfiguration(draft: SurveyDefinitionV1) {
@@ -55,13 +61,13 @@ function assertRewardAllowedForSurface(
 }
 
 const kindByCategory: Record<SurveyDefinitionV1["category"], SurveyKind> = {
-  purchase_motivation: SurveyKind.PURCHASE_MOTIVATION,
-  purchase_barrier: SurveyKind.PURCHASE_BARRIER,
-  cart_exit: SurveyKind.ABANDONMENT,
-  abandoned_cart: SurveyKind.ABANDONMENT,
-  post_delivery_nps: SurveyKind.NPS,
-  product_satisfaction: SurveyKind.PRODUCT_FEEDBACK,
-  standalone: SurveyKind.CUSTOM,
+  purchase_motivation: SurveyKindValue.PURCHASE_MOTIVATION,
+  purchase_barrier: SurveyKindValue.PURCHASE_BARRIER,
+  cart_exit: SurveyKindValue.ABANDONMENT,
+  abandoned_cart: SurveyKindValue.ABANDONMENT,
+  post_delivery_nps: SurveyKindValue.NPS,
+  product_satisfaction: SurveyKindValue.PRODUCT_FEEDBACK,
+  standalone: SurveyKindValue.CUSTOM,
 };
 
 function json(value: unknown): Prisma.InputJsonValue {
@@ -525,7 +531,7 @@ export async function createStandaloneInvite(input: {
     include: {
       activeVersion: true,
       placements: {
-        where: { surface: Surface.STANDALONE },
+        where: { surface: SurfaceValue.STANDALONE },
         include: {
           _count: { select: { responses: { where: { status: "COMPLETED" } } } },
         },
@@ -563,7 +569,7 @@ export async function createStandaloneInvite(input: {
           data: {
             surveyVersionId: survey.activeVersion!.id,
             placementId: placement.id,
-            surface: Surface.STANDALONE,
+            surface: SurfaceValue.STANDALONE,
             tokenHash,
             context: asJson({ locale: input.locale ?? "en", source: "admin" }),
             idempotencyKey,
@@ -584,7 +590,7 @@ export async function createStandaloneInvite(input: {
         return created;
       });
     } catch (error) {
-      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+      if (!(error instanceof PrismaRuntime.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
       invite = await db.invite.findUnique({ where: { idempotencyKey } });
       if (!invite || invite.surveyVersionId !== survey.activeVersion.id) throw error;
     }
@@ -646,3 +652,4 @@ export async function replaceAudienceRules(input: {
     return { placementId: placement.id, ruleCount: input.rules.length };
   });
 }
+
