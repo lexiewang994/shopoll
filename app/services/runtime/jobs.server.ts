@@ -1,4 +1,6 @@
-import { IntegrationEventStatus, Prisma, RewardStatus, RewardType } from "@prisma/client";
+import prismaClientPackage, {
+  type Prisma,
+} from "@prisma/client";
 import type { JobHelpers, TaskList } from "graphile-worker";
 import db from "../../db.server";
 import { calculateNps, calculateRate } from "../../domain";
@@ -17,6 +19,12 @@ import {
 import { decryptText, encryptText, sha256 } from "../security.server";
 import { shopDomainAliases } from "../shop-domain.server";
 import { asJson, deterministicOpaqueToken, isRecord } from "./common.server";
+
+const {
+  IntegrationEventStatus,
+  RewardStatus,
+  RewardType: RewardTypeValue,
+} = prismaClientPackage;
 
 function eventPayload(value: Prisma.JsonValue): Record<string, unknown> {
   if (!isRecord(value) || value.version !== 1) throw new Error("Invalid integration event payload");
@@ -139,7 +147,7 @@ export async function deliverKlaviyoIntegrationEvent(eventId: string): Promise<v
         locale: reward.responseSession.locale,
         responseSessionId: reward.responseSession.id,
         rewardIssueId: reward.id,
-        rewardType: reward.type === RewardType.PERCENTAGE ? "percentage" : reward.type === RewardType.FIXED_AMOUNT ? "fixed_amount" : "free_shipping",
+        rewardType: reward.type === RewardTypeValue.PERCENTAGE ? "percentage" : reward.type === RewardTypeValue.FIXED_AMOUNT ? "fixed_amount" : "free_shipping",
         code: decryptText(reward.codeEncrypted, "shopoll-reward-code:v1"),
         expiresAt: reward.expiresAt,
       });
@@ -187,15 +195,15 @@ function rewardRequest(
       shippingDiscounts: snapshot.combinesWithShipping === true,
     },
   };
-  if (type === RewardType.PERCENTAGE) {
+  if (type === RewardTypeValue.PERCENTAGE) {
     const percentage = Number(snapshot.value);
     if (!Number.isFinite(percentage)) throw new Error("Percentage reward value is invalid");
     return { ...common, reward: { type: "percentage", percentage } };
   }
-  if (type === RewardType.FIXED_AMOUNT) {
+  if (type === RewardTypeValue.FIXED_AMOUNT) {
     return { ...common, reward: { type: "fixed_amount", amount: String(snapshot.value ?? "") } };
   }
-  if (type === RewardType.FREE_SHIPPING) {
+  if (type === RewardTypeValue.FREE_SHIPPING) {
     return {
       ...common,
       appliesToProductIds: undefined,
@@ -439,10 +447,10 @@ export async function sendWeeklyReport(payload: SendWeeklyReportJobPayload): Pro
   const anomalies = [
     ...(failedEvents > 0 ? [subscription.locale === "en"
       ? `${failedEvents} integration deliveries failed`
-      : `${failedEvents} 个集成事件发送失败`] : []),
+      : `${failedEvents} 涓泦鎴愪簨浠跺彂閫佸け璐] : []),
     ...(failedRewards > 0 ? [subscription.locale === "en"
       ? `${failedRewards} rewards failed`
-      : `${failedRewards} 个奖励签发失败`] : []),
+      : `${failedRewards} 涓鍔辩鍙戝け璐] : []),
   ];
 
   await klaviyoClient().sendWeeklyReport({
@@ -652,3 +660,4 @@ export const shopollTaskList: TaskList = {
     await purgeRetainedData("*");
   },
 };
+
