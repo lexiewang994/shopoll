@@ -1,7 +1,7 @@
 # This file stores configurations for your Shopify app.
 name = "Shopoll"
-client_id = ""
-application_url = "https://poll.harborinno.com"
+client_id = "f19b84efd51e1b54de9940e3288d6757"
+application_url = "https://shopoll-production.up.railway.app"
 embedded = true
 
 [access_scopes]
@@ -55,4 +55,4 @@ prefix = "apps"
 subpath = "shopoll"
 
 [auth]
-redirect_urls = ["https://poll.harborinno.com/auth/callback"]
+redirect_urls = ["https://shopoll-production.up.railway.app/auth/callback"]
