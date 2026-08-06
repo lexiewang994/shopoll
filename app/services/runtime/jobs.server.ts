@@ -447,10 +447,10 @@ export async function sendWeeklyReport(payload: SendWeeklyReportJobPayload): Pro
   const anomalies = [
     ...(failedEvents > 0 ? [subscription.locale === "en"
       ? `${failedEvents} integration deliveries failed`
-      : `${failedEvents} 涓泦鎴愪簨浠跺彂閫佸け璐] : []),
+      : `${failedEvents} 个集成事件发送失败`] : []),
     ...(failedRewards > 0 ? [subscription.locale === "en"
       ? `${failedRewards} rewards failed`
-      : `${failedRewards} 涓鍔辩鍙戝け璐] : []),
+      : `${failedRewards} 个奖励签发失败`] : []),
   ];
 
   await klaviyoClient().sendWeeklyReport({
@@ -660,4 +660,3 @@ export const shopollTaskList: TaskList = {
     await purgeRetainedData("*");
   },
 };
-
