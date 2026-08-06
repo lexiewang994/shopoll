@@ -1,13 +1,18 @@
 import { createHash } from "node:crypto";
-import {
-  Prisma,
-  ResponseStatus,
-  RewardStatus,
-  RewardType,
-  Surface,
-  SurveyStatus,
+import prismaClientPackage, {
+  type Prisma,
+  type Surface,
 } from "@prisma/client";
 import db from "../../db.server";
+
+const {
+  Prisma: PrismaRuntime,
+  ResponseStatus,
+  RewardStatus,
+  RewardType: RewardTypeValue,
+  Surface: SurfaceValue,
+  SurveyStatus,
+} = prismaClientPackage;
 import {
   getNextVisibleQuestion,
   computeNextVisibleQuestions,
@@ -113,7 +118,7 @@ function assertSchemaVersion(value: unknown): void {
 }
 
 function uniqueConflict(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+  return error instanceof PrismaRuntime.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
 async function findOrderFact(
@@ -1074,7 +1079,7 @@ export async function upsertPublicAnswer(
 }
 
 export interface RewardConfiguration {
-  type: typeof RewardType.PERCENTAGE | typeof RewardType.FIXED_AMOUNT | typeof RewardType.FREE_SHIPPING;
+  type: typeof RewardTypeValue.PERCENTAGE | typeof RewardTypeValue.FIXED_AMOUNT | typeof RewardTypeValue.FREE_SHIPPING;
   value?: number | string;
   minimumSubtotal?: string;
   validForDays: number;
@@ -1090,26 +1095,26 @@ export function rewardConfiguration(definition: SurveyDefinitionV1): RewardConfi
   if (!metadata || metadata.rewardEnabled !== true) return null;
   const type = String(metadata.rewardType ?? "").toLowerCase();
   const rewardType = type === "percentage"
-    ? RewardType.PERCENTAGE
+    ? RewardTypeValue.PERCENTAGE
     : type === "fixed_amount" || type === "fixed"
-      ? RewardType.FIXED_AMOUNT
+      ? RewardTypeValue.FIXED_AMOUNT
       : type === "free_shipping"
-        ? RewardType.FREE_SHIPPING
+        ? RewardTypeValue.FREE_SHIPPING
         : null;
   if (!rewardType) throw new RuntimeError(500, "invalid_reward_config", "Published reward configuration is invalid");
   const rawValue = metadata.rewardValue;
   const numericValue = typeof rawValue === "number" || typeof rawValue === "string"
     ? Number(rawValue)
     : NaN;
-  if (rewardType === RewardType.PERCENTAGE
+  if (rewardType === RewardTypeValue.PERCENTAGE
     && (!Number.isFinite(numericValue) || numericValue <= 0 || numericValue > 100)) {
     throw new RuntimeError(500, "invalid_reward_config", "Percentage reward must be greater than 0 and at most 100");
   }
-  if (rewardType === RewardType.FIXED_AMOUNT
+  if (rewardType === RewardTypeValue.FIXED_AMOUNT
     && (!Number.isFinite(numericValue) || numericValue <= 0)) {
     throw new RuntimeError(500, "invalid_reward_config", "Fixed reward must be greater than 0");
   }
-  if (rewardType === RewardType.FREE_SHIPPING
+  if (rewardType === RewardTypeValue.FREE_SHIPPING
     && rawValue !== undefined
     && (!Number.isFinite(numericValue) || numericValue <= 0)) {
     throw new RuntimeError(500, "invalid_reward_config", "Maximum shipping price must be greater than 0");
@@ -1140,14 +1145,14 @@ export function rewardConfiguration(definition: SurveyDefinitionV1): RewardConfi
   }
   return {
     type: rewardType,
-    value: rewardType === RewardType.FREE_SHIPPING ? undefined : numericValue,
+    value: rewardType === RewardTypeValue.FREE_SHIPPING ? undefined : numericValue,
     minimumSubtotal: minimumValue > 0 ? String(minimumValue) : undefined,
     validForDays,
     appliesToProductIds: productScope === "specific_products" ? configuredProductIds : undefined,
     productScope,
     combinesWithShipping: metadata.rewardCombinesShipping === true,
     anonymousRiskAcknowledged: metadata.rewardAnonymousRisk === true,
-    maximumShippingPrice: rewardType === RewardType.FREE_SHIPPING && Number.isFinite(numericValue)
+    maximumShippingPrice: rewardType === RewardTypeValue.FREE_SHIPPING && Number.isFinite(numericValue)
       ? String(numericValue)
       : undefined,
   };
@@ -1163,8 +1168,8 @@ export function rewardForSession(
     productFacts: Prisma.JsonValue | null;
   },
 ): { config: RewardConfiguration; eligibilityKey: string | null } | null {
-  const trustedOrder = session.surface === Surface.THANK_YOU
-    || session.surface === Surface.ORDER_STATUS
+  const trustedOrder = session.surface === SurfaceValue.THANK_YOU
+    || session.surface === SurfaceValue.ORDER_STATUS
     || session.inviteId
     ? session.orderGidHash
     : null;
@@ -1175,7 +1180,7 @@ export function rewardForSession(
       : null;
   if (!eligibilityKey && !config.anonymousRiskAcknowledged) return null;
 
-  if (config.type === RewardType.FREE_SHIPPING || config.productScope === "all_products") {
+  if (config.type === RewardTypeValue.FREE_SHIPPING || config.productScope === "all_products") {
     return { config: { ...config, appliesToProductIds: undefined }, eligibilityKey };
   }
   if (config.productScope === "specific_products") {

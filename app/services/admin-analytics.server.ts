@@ -1,5 +1,7 @@
-import { ResponseStatus, type Prisma } from "@prisma/client";
+import prismaClientPackage, { type Prisma } from "@prisma/client";
 import { stringify } from "csv-stringify/sync";
+
+const { ResponseStatus } = prismaClientPackage;
 
 import {
   calculateCsat,

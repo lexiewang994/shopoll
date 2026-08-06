@@ -1,5 +1,7 @@
-import { Surface } from "@prisma/client";
+import prismaClientPackage, { type Surface } from "@prisma/client";
 import type { ActionFunctionArgs } from "react-router";
+
+const { Surface: SurfaceValue } = prismaClientPackage;
 
 import {
   replaceAudienceRules,
@@ -26,7 +28,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     styleConfig?: unknown;
     audienceRules?: AudienceRuleInput[];
   };
-  if (!body.surface || !Object.values(Surface).includes(body.surface as Surface)) {
+  if (!body.surface || !Object.values(SurfaceValue).includes(body.surface as Surface)) {
     return Response.json({ error: "A valid surface is required" }, { status: 422 });
   }
   const startsAt = body.startsAt ? new Date(body.startsAt) : null;

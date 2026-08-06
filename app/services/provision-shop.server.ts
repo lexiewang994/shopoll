@@ -1,28 +1,34 @@
 import { createHash } from "node:crypto";
-import { Prisma, Surface, SurveyKind } from "@prisma/client";
+import prismaClientPackage, {
+  type Prisma,
+  type Surface,
+  type SurveyKind,
+} from "@prisma/client";
 import type { AdminApiContext } from "@shopify/shopify-app-react-router/server";
+
+const { Surface: SurfaceValue, SurveyKind: SurveyKindValue } = prismaClientPackage;
 
 import { HARBOR_SURVEY_TEMPLATES } from "../data";
 import db from "../db.server";
 
 const kinds: Record<string, SurveyKind> = {
-  purchase_motivation: SurveyKind.PURCHASE_MOTIVATION,
-  purchase_barrier: SurveyKind.PURCHASE_BARRIER,
-  cart_exit: SurveyKind.ABANDONMENT,
-  abandoned_cart: SurveyKind.ABANDONMENT,
-  post_delivery_nps: SurveyKind.NPS,
-  product_satisfaction: SurveyKind.PRODUCT_FEEDBACK,
-  standalone: SurveyKind.CUSTOM,
+  purchase_motivation: SurveyKindValue.PURCHASE_MOTIVATION,
+  purchase_barrier: SurveyKindValue.PURCHASE_BARRIER,
+  cart_exit: SurveyKindValue.ABANDONMENT,
+  abandoned_cart: SurveyKindValue.ABANDONMENT,
+  post_delivery_nps: SurveyKindValue.NPS,
+  product_satisfaction: SurveyKindValue.PRODUCT_FEEDBACK,
+  standalone: SurveyKindValue.CUSTOM,
 };
 
 const surfaces: Record<string, Surface> = {
-  purchase_motivation: Surface.THANK_YOU,
-  purchase_barrier: Surface.THEME_POPUP,
-  cart_exit: Surface.THEME_POPUP,
-  abandoned_cart: Surface.KLAVIYO_EMAIL,
-  post_delivery_nps: Surface.KLAVIYO_EMAIL,
-  product_satisfaction: Surface.KLAVIYO_EMAIL,
-  standalone: Surface.STANDALONE,
+  purchase_motivation: SurfaceValue.THANK_YOU,
+  purchase_barrier: SurfaceValue.THEME_POPUP,
+  cart_exit: SurfaceValue.THEME_POPUP,
+  abandoned_cart: SurfaceValue.KLAVIYO_EMAIL,
+  post_delivery_nps: SurfaceValue.KLAVIYO_EMAIL,
+  product_satisfaction: SurfaceValue.KLAVIYO_EMAIL,
+  standalone: SurfaceValue.STANDALONE,
 };
 
 function json(value: unknown): Prisma.InputJsonValue {
@@ -165,7 +171,7 @@ export async function provisionHarborShop(shopDomain: string): Promise<void> {
         slug: surveyDefinition.slug,
         name: surveyDefinition.internalName,
         description: surveyDefinition.description?.en,
-        kind: kinds[surveyDefinition.category] ?? SurveyKind.CUSTOM,
+        kind: kinds[surveyDefinition.category] ?? SurveyKindValue.CUSTOM,
         enabledLocales: [...surveyDefinition.enabledLocales],
         draftDefinition: json(surveyDefinition),
         priority: surveyDefinition.category === "purchase_motivation" ? 100 : 0,
@@ -186,7 +192,7 @@ export async function provisionHarborShop(shopDomain: string): Promise<void> {
         },
       });
     }
-    const surface = surfaces[surveyDefinition.category] ?? Surface.STANDALONE;
+    const surface = surfaces[surveyDefinition.category] ?? SurfaceValue.STANDALONE;
     await db.placement.upsert({
       where: { surveyId_surface: { surveyId: survey.id, surface } },
       create: {

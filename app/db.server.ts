@@ -1,8 +1,12 @@
-import { PrismaClient } from "@prisma/client";
+import prismaClientPackage, {
+  type PrismaClient as PrismaClientType,
+} from "@prisma/client";
+
+const { PrismaClient } = prismaClientPackage;
 
 declare global {
   // eslint-disable-next-line no-var
-  var prismaGlobal: PrismaClient;
+  var prismaGlobal: PrismaClientType;
 }
 
 if (process.env.NODE_ENV !== "production") {

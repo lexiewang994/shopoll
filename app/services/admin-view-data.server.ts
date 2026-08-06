@@ -1,4 +1,6 @@
-import { ResponseStatus, type Prisma } from "@prisma/client";
+import prismaClientPackage, { type Prisma } from "@prisma/client";
+
+const { ResponseStatus } = prismaClientPackage;
 
 import type {
   LiveAnalyticsView,
