@@ -108,7 +108,7 @@ export function analyticsSessionProduct(
       answer.questionId === "core_product" &&
       coreProductName(answer.value) !== undefined,
   );
-  if (explicit) return coreProductName(explicit.value) ?? "鈥?;
+  if (explicit) return coreProductName(explicit.value) ?? "—";
 
   const inferred = [
     ...new Set(
@@ -118,7 +118,7 @@ export function analyticsSessionProduct(
       }),
     ),
   ];
-  return inferred.length === 1 ? inferred[0] : "鈥?;
+  return inferred.length === 1 ? inferred[0] : "—";
 }
 
 function dateValue(
@@ -158,16 +158,16 @@ function answerDisplay(
   locale: string,
 ): string {
   const value = answer.value;
-  if (value === null) return "鈥?;
+  if (value === null) return "—";
   if (Array.isArray(value))
     return value
       .map((item) => optionLabel(answer.questionSnapshot, String(item), locale))
-      .join(" 路 ");
+      .join(" · ");
   if (typeof value === "string")
     return optionLabel(answer.questionSnapshot, value, locale);
   if (typeof value === "number" || typeof value === "boolean")
     return String(value);
-  return "鈥?;
+  return "—";
 }
 
 function percent(value: number, total: number): number {
@@ -252,19 +252,19 @@ export function analyticsFunnelCounts(
     partials,
     completions,
     funnel: [
-      { label: "鏇濆厜", value: impressions, rate: 100 },
-      { label: "寮€濮?, value: starts, rate: percent(starts, impressions) },
+      { label: "曝光", value: impressions, rate: 100 },
+      { label: "开始", value: starts, rate: percent(starts, impressions) },
       {
-        label: "鍥炵瓟绗?1 棰?,
+        label: "回答第 1 题",
         value: answeredAtLeast(1),
         rate: percent(answeredAtLeast(1), starts),
       },
       {
-        label: "鍥炵瓟绗?2 棰?,
+        label: "回答第 2 题",
         value: answeredAtLeast(2),
         rate: percent(answeredAtLeast(2), starts),
       },
-      { label: "瀹屾垚", value: completions, rate: percent(completions, starts) },
+      { label: "完成", value: completions, rate: percent(completions, starts) },
     ],
   };
 }
@@ -550,9 +550,9 @@ export async function adminAnalyticsView(
       survey: session.surveyVersion.survey.name,
       version: session.surveyVersion.version,
       product,
-      market: order?.market ?? "鈥?,
+      market: order?.market ?? "—",
       locale: session.locale,
-      source: order?.source ?? "鈥?,
+      source: order?.source ?? "—",
       status: session.status,
       answered: answers.length,
       totalQuestions: visibleQuestions.length,
@@ -611,7 +611,7 @@ export async function adminAnalyticsView(
         const variantId = variantGid.split("/").at(-1) ?? variantGid;
         variants.set(
           variantGid,
-          productLabel ? `${productLabel} 路 ${variantId}` : variantId,
+          productLabel ? `${productLabel} · ${variantId}` : variantId,
         );
       }
     }
@@ -849,4 +849,3 @@ export async function adminSettingsView(
     })),
   };
 }
-
