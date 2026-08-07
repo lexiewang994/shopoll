@@ -34,7 +34,7 @@ jobs:
     name: Deploy Railway
     needs: verify
     runs-on: ubuntu-latest
-    environment: production
+    environment: "shopoll / production"
     env:
       RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
       RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT || 'production' }}
@@ -135,7 +135,7 @@ jobs:
     needs: [verify, deploy-railway]
     if: ${{ inputs.deploy_shopify }}
     runs-on: ubuntu-latest
-    environment: production
+    environment: "shopoll / production"
     env:
       SHOPIFY_CONFIG: ${{ vars.SHOPIFY_CONFIG }}
       SHOPIFY_APP_URL: ${{ vars.SHOPOLL_PUBLIC_URL }}
