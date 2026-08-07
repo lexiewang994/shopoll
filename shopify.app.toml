@@ -1,6 +1,6 @@
 # This file stores configurations for your Shopify app.
 name = "Shopoll"
-client_id = "f19b84efd51e1b54de9940e3288d6757"
+client_id = "9f9843b80dd555f9afab690355faa35e"
 application_url = "https://shopoll-production.up.railway.app"
 embedded = true
 
